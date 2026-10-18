@@ -1,10 +1,13 @@
 """Command-line entry point for the dependency graph visualizer."""
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
+
+from src.cargo import CargoRegistryError, fetch_direct_dependencies
 
 
 PACKAGE_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -60,11 +63,30 @@ def print_configuration(args):
 
 
 def main(argv=None):
-    """Parse and validate arguments, then display the configuration."""
+    """Parse options and print direct package dependencies."""
     parser = build_parser()
     args = parser.parse_args(argv)
     validate_arguments(args, parser)
-    print_configuration(args)
+    try:
+        if args.test_mode:
+            graph_text = Path(args.repository).read_text(encoding="utf-8")
+            graph = json.loads(graph_text)
+            dependencies = graph.get(args.package)
+            if dependencies is None:
+                raise ValueError(f"Package not found: {args.package}")
+        else:
+            dependencies = fetch_direct_dependencies(
+                args.package, args.repository
+            )
+    except (
+        OSError, json.JSONDecodeError, ValueError, CargoRegistryError
+    ) as error:
+        parser.error(str(error))
+    print(f"Direct dependencies of {args.package}:")
+    for dependency in dependencies:
+        print(dependency)
+    if not dependencies:
+        print("(none)")
     return 0
 
 
