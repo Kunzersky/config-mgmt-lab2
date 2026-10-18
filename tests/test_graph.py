@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.graph import build_graph, load_test_graph
+from src.graph import build_graph, installation_order, load_test_graph
 
 
 class GraphTests(unittest.TestCase):
@@ -34,6 +34,25 @@ class GraphTests(unittest.TestCase):
         source = {"A": ["B"], "B": ["C"], "C": ["A"]}
         result = build_graph("A", source.get)
         self.assertEqual(result, source)
+
+    def test_installation_order_places_dependencies_first(self):
+        graph = {
+            "A": ["B", "C"],
+            "B": ["D"],
+            "C": ["D", "E"],
+            "D": [],
+            "E": ["F"],
+            "F": [],
+        }
+        order = installation_order(graph, "A")
+        self.assertEqual(order[-1], "A")
+        self.assertEqual(len(order), len(set(order)))
+        self.assertLess(order.index("D"), order.index("B"))
+        self.assertLess(order.index("D"), order.index("C"))
+
+    def test_installation_order_rejects_cycles(self):
+        with self.assertRaisesRegex(ValueError, "cyclic dependency"):
+            installation_order({"A": ["B"], "B": ["A"]}, "A")
 
     def test_test_graph_requires_uppercase_names(self):
         with tempfile.TemporaryDirectory() as directory:

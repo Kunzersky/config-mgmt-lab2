@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from src.cargo import CargoRegistryError, fetch_direct_dependencies
-from src.graph import build_graph, load_test_graph
+from src.graph import build_graph, installation_order, load_test_graph
 
 
 PACKAGE_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -32,6 +32,9 @@ def build_parser():
     )
     parser.add_argument(
         "--tree", action="store_true", help="Print dependencies as ASCII tree"
+    )
+    parser.add_argument(
+        "--order", action="store_true", help="Print dependency loading order"
     )
     parser.add_argument(
         "--filter", default="", help="Ignore package names containing text"
@@ -76,6 +79,14 @@ def main(argv=None):
         OSError, ValueError, CargoRegistryError
     ) as error:
         parser.error(str(error))
+    if args.order:
+        try:
+            order = installation_order(graph, args.package)
+        except ValueError as error:
+            parser.error(str(error))
+        print("Installation order:")
+        print(" -> ".join(order))
+        return 0
     print(f"Dependency graph of {args.package}:")
     has_edges = False
     for package, dependencies in graph.items():

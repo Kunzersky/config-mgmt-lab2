@@ -57,3 +57,26 @@ def build_graph(root, get_dependencies, filter_text=""):
         pending, graph, visited, get_dependencies, filter_text
     )
     return graph
+
+
+def installation_order(graph, root):
+    """Return dependencies before packages, rejecting cyclic graphs."""
+    visited = set()
+    active = set()
+    order = []
+
+    def visit(package):
+        """Append one package after visiting all its dependencies."""
+        if package in active:
+            raise ValueError(f"Cannot order cyclic dependency at {package}")
+        if package in visited:
+            return
+        active.add(package)
+        for dependency in graph.get(package, []):
+            visit(dependency)
+        active.remove(package)
+        visited.add(package)
+        order.append(package)
+
+    visit(root)
+    return order
