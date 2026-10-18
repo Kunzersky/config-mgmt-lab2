@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from src.cargo import CargoRegistryError, fetch_direct_dependencies
 from src.graph import build_graph, installation_order, load_test_graph
+from src.render import format_ascii_tree, format_mermaid, save_svg
 
 
 PACKAGE_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -59,42 +60,57 @@ def validate_arguments(args, parser):
         parser.error("--output must be a non-empty .svg path")
 
 
+def collect_graph(args):
+    """Read a local graph or fetch package dependencies, then traverse it."""
+    if args.test_mode:
+        source = load_test_graph(args.repository)
+        if args.package not in source:
+            raise ValueError(f"Package not found: {args.package}")
+        get_dependencies = lambda name: source.get(name, [])
+    else:
+        get_dependencies = lambda name: fetch_direct_dependencies(
+            name, args.repository
+        )
+    return build_graph(args.package, get_dependencies, args.filter)
+
+
+def print_order(graph, root, parser):
+    """Print topological package loading order."""
+    try:
+        order = installation_order(graph, root)
+    except ValueError as error:
+        parser.error(str(error))
+    print("Installation order:")
+    print(" -> ".join(order))
+
+
+def print_graph(graph, args, parser):
+    """Save and print diagram representations of the graph."""
+    try:
+        save_svg(graph, args.output)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+    print(format_mermaid(graph))
+    print(f"SVG saved: {args.output}")
+    if args.tree:
+        print(format_ascii_tree(graph, args.package))
+
+
 def main(argv=None):
-    """Parse options and print the reachable dependency graph."""
+    """Parse options, build the graph, and run the requested output mode."""
     parser = build_parser()
     args = parser.parse_args(argv)
     validate_arguments(args, parser)
     try:
-        if args.test_mode:
-            source = load_test_graph(args.repository)
-            if args.package not in source:
-                raise ValueError(f"Package not found: {args.package}")
-            get_dependencies = lambda name: source.get(name, [])
-        else:
-            get_dependencies = lambda name: fetch_direct_dependencies(
-                name, args.repository
-            )
-        graph = build_graph(args.package, get_dependencies, args.filter)
+        graph = collect_graph(args)
     except (
         OSError, ValueError, CargoRegistryError
     ) as error:
         parser.error(str(error))
     if args.order:
-        try:
-            order = installation_order(graph, args.package)
-        except ValueError as error:
-            parser.error(str(error))
-        print("Installation order:")
-        print(" -> ".join(order))
-        return 0
-    print(f"Dependency graph of {args.package}:")
-    has_edges = False
-    for package, dependencies in graph.items():
-        for dependency in dependencies:
-            print(f"{package} -> {dependency}")
-            has_edges = True
-    if not has_edges:
-        print("(none)")
+        print_order(graph, args.package, parser)
+    else:
+        print_graph(graph, args, parser)
     return 0
 
 

@@ -12,6 +12,7 @@ CLI-приложение для анализа зависимостей Rust-п�
 Этап 3: зависимости обходятся BFS с рекурсией; циклы и фильтр поддержаны.
 Этап 4: `--order` показывает dependency-first порядок; при цикле завершает
 работу с понятной ошибкой.
+Этап 5: выводит Mermaid, создает SVG и по `--tree` печатает ASCII-дерево.
 
 ## Параметры
 
@@ -49,7 +50,11 @@ Registry API возвращает декларации, поэтому optional-
 ```sh
 ./run.sh --package A --repository examples/repository.json \
 	--test-mode --order
-cargo tree -p serde
+mkdir /tmp/cargo-compare
+cd /tmp/cargo-compare
+cargo init --bin --name cargo-compare
+cargo add serde
+cargo tree -p cargo-compare
 ```
 
 Приложение строит топологический порядок по декларациям crates.io: зависимости
@@ -58,3 +63,27 @@ cargo tree -p serde
 активной платформы и выбранных features. Поэтому расхождения ожидаемы для
 optional/target-specific зависимостей и транзитивных версий; тестовый граф
 показывает только явно заданные ребра.
+
+## Примеры визуализации
+
+Каждый запуск печатает Mermaid и сохраняет SVG с выбранным именем. Три
+различных корневых пакета тестового репозитория:
+
+```sh
+./run.sh --package A --repository examples/repository.json --test-mode \
+	--output output/a.svg --tree
+./run.sh --package B --repository examples/repository.json --test-mode \
+	--output output/b.svg
+./run.sh --package C --repository examples/repository.json --test-mode \
+	--output output/c.svg
+```
+
+Граф для `A` включает `B`, `C`, общую зависимость `D` и ветвь `E -> F`;
+для `B` строится `B -> D`; для `C` строится `C -> D` и `C -> E -> F`.
+SVG-файлы являются результатом запуска и не хранятся в git.
+
+Для реального сравнения запустите приложение для `serde` с crates.io URL и
+сопоставьте Mermaid/SVG с `cargo tree -p cargo-compare`. Cargo-вывод зависит
+от `Cargo.lock`, features и target; генератор показывает API-декларации
+пакета и потому может включить optional-зависимости, не активированные в
+проекте.
