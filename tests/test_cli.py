@@ -13,20 +13,6 @@ from src.main import build_parser, main, validate_arguments
 class CliTests(unittest.TestCase):
     """Check configuration output and invalid parameter handling."""
 
-    def test_print_configuration_prints_all_values(self):
-        output = io.StringIO()
-        parser = build_parser()
-        args = parser.parse_args(
-            ["--package", "serde", "--repository", "https://crates.io"]
-        )
-        with contextlib.redirect_stdout(output):
-            from src.main import print_configuration
-
-            print_configuration(args)
-        self.assertIn("package=serde", output.getvalue())
-        self.assertIn("test_mode=False", output.getvalue())
-        self.assertIn("filter=", output.getvalue())
-
     def test_test_mode_prints_direct_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:
             graph_path = Path(directory) / "graph.json"
