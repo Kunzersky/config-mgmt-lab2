@@ -50,6 +50,21 @@ class CargoTests(unittest.TestCase):
             fetch_direct_dependencies("empty", "https://crates.io"), []
         )
 
+    @patch("src.cargo.urlopen")
+    def test_uses_explicit_version_without_latest_lookup(self, mocked_urlopen):
+        mocked_urlopen.return_value = io.BytesIO(
+            json.dumps({"dependencies": []}).encode()
+        )
+
+        result = fetch_direct_dependencies(
+            "demo", "https://crates.io", "2.4.1"
+        )
+
+        self.assertEqual(result, [])
+        self.assertEqual(mocked_urlopen.call_count, 1)
+        request = mocked_urlopen.call_args.args[0]
+        self.assertTrue(request.full_url.endswith("/demo/2.4.1/dependencies"))
+
 
 if __name__ == "__main__":
     unittest.main()

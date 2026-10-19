@@ -1,23 +1,30 @@
-"""Render dependency graphs as Mermaid, SVG, and ASCII trees."""
+"""Render dependency graphs as Graphviz DOT, SVG, and ASCII trees."""
 
 import html
-import json
+import shutil
+import subprocess
 from collections import defaultdict, deque
 from pathlib import Path
 
 
-def format_mermaid(graph):
-    """Return a Mermaid flowchart description for a dependency graph."""
-    names = list(graph)
-    identifiers = {name: f"n{index}" for index, name in enumerate(names)}
-    lines = ["flowchart TD"]
-    for name in names:
-        lines.append(f"    {identifiers[name]}[{json.dumps(name)}]")
+def quote_dot_label(name):
+    """Escape one package name as a quoted Graphviz identifier."""
+    escaped = name.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def format_graphviz(graph):
+    """Return a Graphviz DOT digraph description."""
+    lines = ["digraph dependencies {", "    rankdir=LR;"]
+    for name in graph:
+        lines.append(f"    {quote_dot_label(name)};")
     for package, dependencies in graph.items():
         for dependency in dependencies:
             lines.append(
-                f"    {identifiers[package]} --> {identifiers[dependency]}"
+                f"    {quote_dot_label(package)} -> "
+                f"{quote_dot_label(dependency)};"
             )
+    lines.append("}")
     return "\n".join(lines)
 
 
@@ -104,8 +111,8 @@ def append_nodes(elements, positions, box_width):
         )
 
 
-def save_svg(graph, output_path):
-    """Write a self-contained SVG diagram for the dependency graph."""
+def save_svg_fallback(graph, output_path):
+    """Write SVG with the built-in layout when Graphviz is unavailable."""
     if not graph:
         raise ValueError("Cannot render an empty dependency graph")
     names = list(graph)
@@ -128,3 +135,25 @@ def save_svg(graph, output_path):
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text("\n".join(elements), encoding="utf-8")
+
+
+def save_svg(graph, output_path):
+    """Save DOT and render SVG with Graphviz or the built-in fallback."""
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    dot_path = destination.with_suffix(".dot")
+    dot_source = format_graphviz(graph)
+    dot_path.write_text(dot_source, encoding="utf-8")
+    executable = shutil.which("dot")
+    if executable is None:
+        save_svg_fallback(graph, destination)
+        return dot_path
+    try:
+        result = subprocess.run(
+            [executable, "-Tsvg"], input=dot_source, capture_output=True,
+            text=True, check=True
+        )
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"Graphviz failed: {error.stderr.strip()}") from error
+    destination.write_text(result.stdout, encoding="utf-8")
+    return dot_path

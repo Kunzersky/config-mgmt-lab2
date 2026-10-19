@@ -20,15 +20,18 @@ def fetch_json(url):
         raise CargoRegistryError(f"Registry request failed: {error}") from error
 
 
-def fetch_direct_dependencies(package, repository):
-    """Return direct normal and build dependencies for the stable release."""
+def fetch_direct_dependencies(package, repository, version=None):
+    """Return normal and build dependencies for a selected crate version."""
     base_url = repository.rstrip("/")
     package_path = quote(package, safe="")
-    crate_url = f"{base_url}/api/v1/crates/{package_path}"
-    crate = fetch_json(crate_url).get("crate", {})
-    version = crate.get("max_stable_version") or crate.get("max_version")
-    if not version:
-        raise CargoRegistryError(f"No published version found for {package}")
+    if version is None:
+        crate_url = f"{base_url}/api/v1/crates/{package_path}"
+        crate = fetch_json(crate_url).get("crate", {})
+        version = crate.get("max_stable_version") or crate.get("max_version")
+        if not version:
+            raise CargoRegistryError(
+                f"No published version found for {package}"
+            )
 
     version_path = quote(version, safe="")
     dependency_url = (

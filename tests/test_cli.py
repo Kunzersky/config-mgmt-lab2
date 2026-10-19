@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.main import build_parser, main, validate_arguments
+from src.main import build_parser, collect_graph, main, validate_arguments
 
 
 class CliTests(unittest.TestCase):
@@ -23,11 +23,32 @@ class CliTests(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 result = main(
                     ["--package", "A", "--repository", str(graph_path),
-                     "--test-mode"]
+                     "--test-mode", "--output",
+                     str(Path(directory) / "test.svg")]
                 )
         self.assertEqual(result, 0)
         self.assertIn("B", output.getvalue())
         self.assertIn("C", output.getvalue())
+
+    def test_explicit_version_is_passed_to_registry(self):
+        from unittest.mock import patch
+
+        parser = build_parser()
+        args = parser.parse_args(
+            ["--package", "serde", "--version", "1.0.0",
+             "--repository", "https://crates.io"]
+        )
+        with patch(
+            "src.main.fetch_direct_dependencies", return_value=[]
+        ) as fetch:
+            with patch(
+                "src.main.build_graph",
+                side_effect=lambda root, getter, filter_text: {
+                    root: getter(root)
+                },
+            ):
+                collect_graph(args)
+        fetch.assert_called_once_with("serde", "https://crates.io", "1.0.0")
 
     def test_rejects_invalid_package(self):
         parser = build_parser()
