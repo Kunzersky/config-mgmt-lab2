@@ -27,8 +27,20 @@ class GraphTests(unittest.TestCase):
 
     def test_filter_excludes_matching_dependency(self):
         source = {"A": ["B", "SKIP"], "B": ["C"], "C": []}
-        result = build_graph("A", source.get, "SKIP")
+        visited = []
+
+        def dependencies(package):
+            """Record the packages fetched by the graph traversal."""
+            visited.append(package)
+            return source.get(package, [])
+
+        result = build_graph("A", dependencies, "SKIP")
         self.assertEqual(result, {"A": ["B"], "B": ["C"], "C": []})
+        self.assertEqual(visited, ["A", "B", "C"])
+
+    def test_filter_rejects_matching_root(self):
+        with self.assertRaisesRegex(ValueError, "Root package SKIP"):
+            build_graph("SKIP_ROOT", lambda _package: [], "SKIP")
 
     def test_cycle_terminates(self):
         source = {"A": ["B"], "B": ["C"], "C": ["A"]}

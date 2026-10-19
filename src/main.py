@@ -73,9 +73,13 @@ def collect_graph(args):
             raise ValueError(f"Package not found: {args.package}")
         get_dependencies = lambda name: source.get(name, [])
     else:
-        get_dependencies = lambda name: fetch_direct_dependencies(
-            name, args.repository, args.version
-        )
+        def get_dependencies(name):
+            """Fetch the requested version only for the root package."""
+            version = args.version if name == args.package else None
+            return fetch_direct_dependencies(
+                name, args.repository, version
+            )
+
     return build_graph(args.package, get_dependencies, args.filter)
 
 

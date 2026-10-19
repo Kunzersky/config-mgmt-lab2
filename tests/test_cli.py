@@ -44,11 +44,18 @@ class CliTests(unittest.TestCase):
             with patch(
                 "src.main.build_graph",
                 side_effect=lambda root, getter, filter_text: {
-                    root: getter(root)
+                    root: getter(root), "CHILD": getter("CHILD")
                 },
             ):
                 collect_graph(args)
-        fetch.assert_called_once_with("serde", "https://crates.io", "1.0.0")
+        self.assertEqual(
+            fetch.call_args_list[0].args,
+            ("serde", "https://crates.io", "1.0.0"),
+        )
+        self.assertEqual(
+            fetch.call_args_list[1].args,
+            ("CHILD", "https://crates.io", None),
+        )
 
     def test_rejects_invalid_package(self):
         parser = build_parser()

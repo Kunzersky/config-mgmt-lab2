@@ -50,6 +50,8 @@ def expand_queue(
 
 def build_graph(root, get_dependencies, filter_text=""):
     """Build the reachable graph with recursive breadth-first search."""
+    if filter_text and filter_text in root:
+        raise ValueError(f"Root package {root} is excluded by the filter")
     graph = {}
     visited = set()
     pending = deque([root])
