@@ -2,7 +2,7 @@
 
 import tempfile
 import unittest
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,33 +12,39 @@ from src.render import format_ascii_tree, format_graphviz, save_svg
 class RenderTests(unittest.TestCase):
     """Check Mermaid, tree, and SVG output."""
 
-    def setUp(self):
+    def set_up(self):
         self.graph = {"A": ["B", "C"], "B": ["D"], "C": ["D"], "D": []}
 
     def test_graphviz_contains_nodes_and_edges(self):
+        self.set_up()
         result = format_graphviz(self.graph)
         self.assertIn("digraph dependencies {", result)
         self.assertIn('"A";', result)
         self.assertIn('"A" -> "B";', result)
 
     def test_graphviz_escapes_quoted_package_names(self):
+        self.set_up()
         result = format_graphviz({'A"B': []})
         self.assertIn('"A\\"B";', result)
 
     def test_ascii_tree_marks_repeated_dependency(self):
+        self.set_up()
         result = format_ascii_tree(self.graph, "A")
         self.assertIn("|-- B", result)
         self.assertIn("(already shown)", result)
 
     def test_svg_is_valid_xml_with_all_package_labels(self):
+        self.set_up()
         with tempfile.TemporaryDirectory() as directory:
             output_path = Path(directory) / "graph.svg"
             dot_path = save_svg(self.graph, output_path)
-            root = ET.parse(output_path).getroot()
+            root = xml.etree.ElementTree.parse(output_path).getroot()
             dot_text = dot_path.read_text(encoding="utf-8")
         labels = [
             item.text
-            for item in root.findall(".//{http://www.w3.org/2000/svg}text")
+            for item in root.findall(
+                ".//{http://www.w3.org/2000/svg}text"
+            )
         ]
         self.assertEqual(labels, ["A", "B", "C", "D"])
         self.assertIn('"C" -> "D";', dot_text)
@@ -46,6 +52,7 @@ class RenderTests(unittest.TestCase):
     @patch("src.render.subprocess.run")
     @patch("src.render.shutil.which", return_value="/usr/bin/dot")
     def test_uses_graphviz_when_installed(self, _which, mocked_run):
+        self.set_up()
         mocked_run.return_value.stdout = "<svg/>"
         with tempfile.TemporaryDirectory() as directory:
             output_path = Path(directory) / "graph.svg"
